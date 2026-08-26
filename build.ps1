@@ -76,7 +76,7 @@ $pyiArgs = @(
 )
 
 if ($Icon -and (Test-Path $Icon)) {
-    $pyiArgs += @("--icon", $Icon)
+    $pyiArgs += @("--icon", (Resolve-Path $Icon).Path)
     Write-Host "使用图标：$Icon" -ForegroundColor Green
 }
 

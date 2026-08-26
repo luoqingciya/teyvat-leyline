@@ -62,7 +62,9 @@ uv run python -m teyuat_leyline
 默认产物：`dist/TeyuatLeyline/TeyuatLeyline.exe`（单目录版会把 `dist/TeyuatLeyline`
 整个目录分发给别人即可运行）。
 
-> 可选：在仓库根目录放置 `assets/app.ico`，脚本会自动用其作为程序图标。
+图标已内置在 `assets/app.ico`（含 16–256 各分辨率）并由打包脚本自动启用；
+如需重绘，运行 `uv run --with pillow python tools/make_icon.py` 即可重新生成
+`assets/app.png` 与 `assets/app.ico`。
 
 ## 🗂️ 项目结构
 
@@ -72,6 +74,8 @@ teyuat-leyline/
 ├─ uv.lock                  # uv 生成的锁定文件
 ├─ build.ps1                # 一键打包（PyInstaller）脚本
 ├─ launcher.py              # PyInstaller 打包入口
+├─ tools/make_icon.py       # 应用图标生成脚本（Pillow）
+├─ assets/app.ico           # 应用图标（含多分辨率）
 ├─ src/teyuat_leyline/
 │  ├─ app.py                 # pywebview 窗口与 JS 桥接
 │  ├─ __main__.py            # CLI 入口
