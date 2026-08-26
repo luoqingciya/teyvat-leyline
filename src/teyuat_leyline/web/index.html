@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>提瓦特地脉 · Teyuat Leyline</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 原神风动态背景 -->
+  <div class="bg" aria-hidden="true">
+    <div class="aurora aurora-a"></div>
+    <div class="aurora aurora-b"></div>
+    <div class="aurora aurora-c"></div>
+    <div class="stars" id="stars"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="emblem" aria-hidden="true">
+        <svg viewBox="0 0 64 64" class="emblem-svg">
+          <defs>
+            <linearGradient id="emblemGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#7fe8d4"/>
+              <stop offset=".55" stop-color="#ffd97a"/>
+              <stop offset="1" stop-color="#b58af0"/>
+            </linearGradient>
+          </defs>
+          <circle cx="32" cy="32" r="28" fill="none" stroke="url(#emblemGrad)" stroke-width="2" opacity=".85"/>
+          <path d="M32 8 L39 25 L57 25 L43 36 L49 54 L32 43 L15 54 L21 36 L7 25 L25 25 Z"
+                fill="url(#emblemGrad)" opacity=".95" stroke="#fff8e1" stroke-width=".8"/>
+          <circle cx="32" cy="32" r="6" fill="#fff" opacity=".9"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>提瓦特地脉</h1>
+        <span class="sub">TEYUAT&nbsp;LEYLINE&nbsp;·&nbsp;多线程下载</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="threads glass">
+        <span class="label">地脉细流</span>
+        <div class="stepper">
+          <button id="threadsDown" class="step-btn" aria-label="减少线程">−</button>
+          <span id="threadsVal">8</span>
+          <button id="threadsUp" class="step-btn" aria-label="增加线程">＋</button>
+        </div>
+      </div>
+      <button id="chooseDir" class="btn btn-ghost">选择目录</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="add-bar glass">
+      <input id="urlInput" type="text" placeholder="将下载链接注入地脉…　https://example.com/file.zip" spellcheck="false" />
+      <button id="addBtn" class="btn btn-primary">导入任务</button>
+    </section>
+
+    <section class="stats">
+      <div class="stat glass">
+        <div class="stat-icon icon-task"></div>
+        <div class="stat-meta">
+          <span class="stat-num" id="statTotal">0</span>
+          <span class="stat-label">任务总数</span>
+        </div>
+      </div>
+      <div class="stat glass">
+        <div class="stat-icon icon-active"></div>
+        <div class="stat-meta">
+          <span class="stat-num" id="statActive">0</span>
+          <span class="stat-label">进行中</span>
+        </div>
+      </div>
+      <div class="stat glass">
+        <div class="stat-icon icon-speed"></div>
+        <div class="stat-meta">
+          <span class="stat-num" id="statSpeed">0 B/s</span>
+          <span class="stat-label">汇聚速度</span>
+        </div>
+      </div>
+      <div class="stat glass">
+        <div class="stat-icon icon-dir"></div>
+        <div class="stat-meta">
+          <span class="stat-dir" id="statDir">—</span>
+          <span class="stat-label">保存目录</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="taskList" class="tasks glass"></section>
+
+    <div id="empty" class="empty">
+      <div class="empty-emblem">✧</div>
+      <p>微风拂过提瓦特大陆，等待冒险家投入新的“地脉”任务…</p>
+      <p class="empty-hint">在上方粘贴链接，即可开始汇聚地脉之流。</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>Teyuat Leyline · 提瓦特地脉</span>
+    <span class="dot">·</span>
+    <span>by 旅行者</span>
+    <span class="spacer"></span>
+    <span>GPLv3</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
