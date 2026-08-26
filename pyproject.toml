@@ -29,6 +29,9 @@ dependencies = [
 dev = [
   "pytest>=8.0",
 ]
+build = [
+  "pyinstaller>=6.0",
+]
 
 [project.scripts]
 teyuat-leyline = "teyuat_leyline.__main__:main"

@@ -44,12 +44,34 @@ uv run teyuat-leyline --url "https://example.com/file.zip" --output ./downloads
 uv run python -m teyuat_leyline
 ```
 
+## 📦 一键打包（Windows）
+
+仓库内置 `build.ps1`，用 **PyInstaller** 把 pywebview 应用打成独立可执行程序，
+分发到没有安装 Python 的机器也能直接运行。
+
+```powershell
+.\build.ps1                    # 单目录版（推荐，启动最快、最稳）
+.\build.ps1 -OneFile           # 打成单个 EXE
+.\build.ps1 -Zip               # 打包完成后再压缩为 zip
+.\build.ps1 -Clean             # 先清理 build/ 与 dist/
+```
+
+脚本会自动：检测 WebView2 运行时、`uv sync --extra build` 安装构建依赖、
+收集前端资源与 webview/pythonnet 运行时、生成并校验产物。
+
+默认产物：`dist/TeyuatLeyline/TeyuatLeyline.exe`（单目录版会把 `dist/TeyuatLeyline`
+整个目录分发给别人即可运行）。
+
+> 可选：在仓库根目录放置 `assets/app.ico`，脚本会自动用其作为程序图标。
+
 ## 🗂️ 项目结构
 
 ```text
 teyuat-leyline/
 ├─ pyproject.toml            # uv / hatchling 构建与依赖清单
 ├─ uv.lock                  # uv 生成的锁定文件
+├─ build.ps1                # 一键打包（PyInstaller）脚本
+├─ launcher.py              # PyInstaller 打包入口
 ├─ src/teyuat_leyline/
 │  ├─ app.py                 # pywebview 窗口与 JS 桥接
 │  ├─ __main__.py            # CLI 入口

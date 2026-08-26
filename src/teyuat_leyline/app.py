@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from importlib import resources
 from pathlib import Path
@@ -110,7 +111,15 @@ class TeyuatApp:
 
 
 def _assets() -> Path:
-    return resources.files("teyuat_leyline").joinpath("web")
+    """返回 web 资源目录。
+
+    打包（PyInstaller）后 ``importlib.resources`` 对非代码数据可能解析失败，
+    因此在 frozen 模式优先读取 ``sys._MEIPASS`` 下的解包目录。
+    """
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", str(Path(sys.executable).resolve().parent))
+        return Path(base) / "teyuat_leyline" / "web"
+    return Path(resources.files("teyuat_leyline").joinpath("web"))
 
 
 def run(*, debug: bool = False) -> None:

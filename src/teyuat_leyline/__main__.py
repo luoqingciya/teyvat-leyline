@@ -10,6 +10,15 @@ import argparse
 import sys
 
 
+def _safe_stdout(text: str) -> None:
+    """写入控制台；在 ``--windowed`` 打包后 sys.stdout 可能为 None。"""
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except Exception:  # noqa: BLE001  (无控制台时静默)
+        pass
+
+
 def _cli_download(url: str, output: str, threads: int) -> int:
     from .core.engine import DownloadEngine
 
@@ -27,12 +36,14 @@ def _cli_download(url: str, output: str, threads: int) -> int:
             status = task.status
             if status not in (TaskStatus.PROBING, TaskStatus.DOWNLOADING, TaskStatus.QUEUED):
                 break
-            sys.stdout.write(f"\r{task.filename}: {task.downloaded}/{task.total_size or '?'} ({status.value})")
-            sys.stdout.flush()
+            _safe_stdout(f"\r{task.filename}: {task.downloaded}/{task.total_size or '?'} ({status.value})")
             import time
 
             time.sleep(0.2)
-        print("\n完成。" if task and task.status == TaskStatus.COMPLETED else f"\n状态：{task.status.value if task else '未知'}")
+        _safe_stdout(
+            "\n完成。" if task and task.status == TaskStatus.COMPLETED
+            else f"\n状态：{task.status.value if task else '未知'}"
+        )
     except KeyboardInterrupt:
         engine.shutdown()
         return 130
@@ -54,3 +65,7 @@ def main() -> None:
     from .app import run
 
     run()
+
+
+if __name__ == "__main__":
+    main()
