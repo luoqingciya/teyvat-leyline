@@ -1,7 +1,7 @@
 """命令行入口。
 
-``uv run teyuat-leyline`` 启动图形界面；
-``uv run python -m teyuat_leyline --url <链接>`` 以无界面模式下载单个文件。
+``uv run teyvat-leyline`` 启动图形界面；
+``uv run python -m teyvat_leyline --url <链接>`` 以无界面模式下载单个文件。
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def _cli_download(url: str, output: str, threads: int) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="teyuat-leyline", description="提瓦特地脉 · Teyuat Leyline 多线程下载器")
+    parser = argparse.ArgumentParser(prog="teyvat-leyline", description="提瓦特地脉 · Teyvat Leyline 多线程下载器")
     parser.add_argument("--url", help="直接下载指定链接（无界面模式）")
     parser.add_argument("--output", default=".", help="无界面模式下的保存目录")
     parser.add_argument("--threads", type=int, default=8, help="分片线程数")

@@ -43,14 +43,14 @@ html, body {
 
 .aurora {
   position: absolute;
-  filter: blur(60px);
-  opacity: 0.42;
+  opacity: 0.5;
   border-radius: 50%;
+  will-change: transform; /* 仅做合成器动画，避免每帧模糊重栅格 */
   animation: drift 22s ease-in-out infinite alternate;
 }
-.aurora-a { width: 480px; height: 480px; top: -160px; left: 8%; background: radial-gradient(circle, rgba(114,229,207,.55), transparent 60%); }
-.aurora-b { width: 420px; height: 420px; top: 30%; right: -100px; background: radial-gradient(circle, rgba(245,210,131,.42), transparent 60%); animation-delay: -6s; }
-.aurora-c { width: 520px; height: 520px; bottom: -180px; left: 40%; background: radial-gradient(circle, rgba(184,144,240,.42), transparent 60%); animation-delay: -12s; }
+.aurora-a { width: 640px; height: 640px; top: -190px; left: 5%; background: radial-gradient(circle, rgba(114,229,207,.30) 0%, rgba(114,229,207,.12) 38%, transparent 70%); }
+.aurora-b { width: 560px; height: 560px; top: 26%; right: -140px; background: radial-gradient(circle, rgba(245,210,131,.24) 0%, rgba(245,210,131,.10) 38%, transparent 70%); animation-delay: -6s; }
+.aurora-c { width: 660px; height: 660px; bottom: -210px; left: 36%; background: radial-gradient(circle, rgba(184,144,240,.26) 0%, rgba(184,144,240,.10) 38%, transparent 70%); animation-delay: -12s; }
 
 @keyframes drift {
   0%   { transform: translate(0, 0) scale(1); }
@@ -64,13 +64,10 @@ html, body {
   width: 3px; height: 3px;
   background: #fff;
   border-radius: 50%;
-  opacity: 0;
-  animation: twinkle var(--d, 6s) ease-in-out infinite;
-  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.5);
-}
-@keyframes twinkle {
-  0%, 100% { opacity: 0; transform: translateY(0); }
-  50% { opacity: 0.9; transform: translateY(-10px); }
+  opacity: 0.8;
+  /* 原先每颗都有无限 twinkle 动画 -> 每颗一个独立合成层。
+     窗口拖动时这些层要逐层重合成上屏，高 DPI/软渲染下会卡成“未响应”。
+     改为静态渲染，消除全部动态合成层，观感无明显差异。 */
 }
 
 /* ---- 顶层 ---- */
@@ -83,8 +80,7 @@ html, body {
   gap: 16px;
   padding: 16px 26px;
   border-bottom: 1px solid var(--line-soft);
-  background: linear-gradient(180deg, rgba(12,16,32,.72), rgba(12,16,32,.28));
-  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(13, 17, 33, 0.92), rgba(13, 17, 33, 0.7));
 }
 
 .brand { display: flex; align-items: center; gap: 14px; }
@@ -185,10 +181,10 @@ html, body {
 #urlInput:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(114,229,207,.15); }
 
 .glass {
-  background: var(--panel-strong);
+  /* 用半透明渐变模拟玻璃，避免 backdrop-filter 随背景动画每帧重合成（WebView2 性能杀手） */
+  background: linear-gradient(160deg, rgba(20, 26, 50, 0.9), rgba(13, 19, 38, 0.94));
   border: 1px solid var(--line);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 10px 34px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.06);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* ---- 统计 ---- */
@@ -297,9 +293,10 @@ html, body {
   content: "";
   position: absolute; top: 0; left: -20%; height: 100%; width: 30%;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  will-change: transform;
   animation: shimmer 1.6s linear infinite;
 }
-@keyframes shimmer { 0% { left: -30%; } 100% { left: 110%; } }
+@keyframes shimmer { 0% { transform: translateX(0); } 100% { transform: translateX(480%); } }
 
 .task-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .mini-btn {
@@ -341,3 +338,98 @@ html, body {
   .stats { grid-template-columns: repeat(2, 1fr); }
   .brand-text .sub { letter-spacing: 1px; }
 }
+
+/* ---- 设置弹窗 ---- */
+.overlay {
+  position: fixed; inset: 0;
+  z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 9, 20, 0.55);
+  padding: 20px;
+}
+.overlay.hidden { display: none; }
+.settings {
+  width: 440px; max-width: 100%;
+  max-height: 90vh; overflow-y: auto;
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  animation: pop .18s ease;
+}
+@keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.settings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.settings-title { font-size: 17px; font-weight: 800; letter-spacing: 2px; color: var(--gold); }
+.settings-body { display: flex; flex-direction: column; gap: 15px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 13px; color: var(--text-dim); }
+.field-hint { font-size: 11px; color: #6f7a9e; }
+.field input {
+  background: rgba(0,0,0,.28);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: var(--font);
+  outline: none;
+}
+.field input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(114,229,207,.14); }
+.switch-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.switch-text { display: flex; flex-direction: column; gap: 3px; }
+.toggle {
+  position: relative; flex: none;
+  width: 46px; height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.08);
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease;
+}
+.toggle .knob {
+  position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform .2s ease, background .2s ease;
+}
+.toggle[aria-checked="true"] { background: linear-gradient(135deg, var(--teal-deep), var(--gold-deep)); border-color: transparent; }
+.toggle[aria-checked="true"] .knob { transform: translateX(20px); background: #fff; }
+.settings-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* ---- 任务卡每任务限速 ---- */
+.task-rate {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 9px;
+  font-size: 12px; color: var(--text-dim);
+}
+.task-rate .row-label { margin-right: 2px; }
+.task-rate .rate-val {
+  min-width: 34px; text-align: center;
+  font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.task-rate .row-unit { color: #6f7a9e; }
+.verify-line { margin-top: 8px; font-size: 12px; }
+.verify-line.ok { color: var(--ok); }
+.verify-line.fail { color: var(--danger); }
+
+/* ---- 通知 ---- */
+.toasts {
+  position: fixed; z-index: 30;
+  top: 16px; right: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  max-width: 320px;
+}
+.toast {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  background: linear-gradient(150deg, rgba(20,26,50,.96), rgba(13,19,38,.97));
+  box-shadow: 0 10px 28px rgba(0,0,0,.4);
+  animation: slide-in .25s ease;
+}
+.toast.success { border-color: rgba(139,224,166,.55); color: var(--ok); }
+.toast.error { border-color: rgba(255,138,138,.55); color: var(--danger); }
+.toast.info { border-color: rgba(114,229,207,.5); color: var(--teal); }
+@keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.toast.out { animation: slide-out .25s ease forwards; }
+@keyframes slide-out { to { transform: translateX(40px); opacity: 0; } }

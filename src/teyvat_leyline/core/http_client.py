@@ -13,7 +13,7 @@ import httpx
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/126.0.0.0 Safari/537.36 TeyuatLeyline/0.1"
+    "Chrome/126.0.0.0 Safari/537.36 TeyvatLeyline/0.1"
 )
 
 CHUNK_SIZE = 256 * 1024          # 单次读取 256 KiB
@@ -36,11 +36,12 @@ class ProbeResult:
     method: str
 
 
-def _safe_client(*, verify: bool = True) -> httpx.Client:
+def _safe_client(*, verify: bool = True, proxy: str | None = None) -> httpx.Client:
     return httpx.Client(
         headers={"User-Agent": DEFAULT_USER_AGENT, "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"},
         follow_redirects=True,
         verify=verify,
+        proxy=proxy or None,
         timeout=httpx.Timeout(connect=CONNECT_TIMEOUT, read=READ_TIMEOUT, write=30.0, pool=10.0),
     )
 
@@ -94,17 +95,18 @@ def _suggest_filename(url: str, content_type: str | None) -> str:
     return name or "download.bin"
 
 
-def probe(url: str, *, verify: bool = True, extra_headers: dict[str, str] | None = None) -> ProbeResult:
+def probe(url: str, *, verify: bool = True, extra_headers: dict[str, str] | None = None,
+          proxy: str | None = None) -> ProbeResult:
     """探测远程文件：大小、是否支持 Range、推荐文件名。
 
     优先 HEAD；若服务器拒绝 HEAD（405/501/403 等），则用 ``Range: bytes=0-0``
     的 GET 探一下 ``Content-Range`` 头。
     """
-    headers = {"Accept": "*/*"}
+    headers = {"Accept": "*/*", **referrer_headers(url)}
     if extra_headers:
         headers.update(extra_headers)
 
-    with _safe_client(verify=verify) as client:
+    with _safe_client(verify=verify, proxy=proxy) as client:
         resp = client.head(url, headers=headers)
         method = "HEAD"
 
@@ -163,3 +165,16 @@ def url_without_query(url: str) -> str:
     """去掉查询串（用于命名临时/校验文件，避免文件名带长参数）。"""
     parsed = urlparse(url)
     return urlunparse(parsed._replace(query=""))
+
+
+def referrer_headers(url: str) -> dict[str, str]:
+    """构造防盗链所需的同源 ``Referer``/``Origin`` 头。
+
+    很多 CDN（如 B 站 s.hdslb.com 等）会校验来源头，缺省时对下载 GET 返回 403。
+    这里按浏览器访问该 URL 时的同源行为给出默认值，供探测与下载统一使用。
+    """
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return {}
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    return {"Referer": origin + "/", "Origin": origin}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>提瓦特地脉 · Teyuat Leyline</title>
+  <title>提瓦特地脉 · Teyvat Leyline</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -34,7 +34,7 @@
       </div>
       <div class="brand-text">
         <h1>提瓦特地脉</h1>
-        <span class="sub">TEYUAT&nbsp;LEYLINE&nbsp;·&nbsp;多线程下载</span>
+        <span class="sub">TEYVAT&nbsp;LEYLINE&nbsp;·&nbsp;多线程下载</span>
       </div>
     </div>
     <div class="top-actions">
@@ -46,6 +46,7 @@
           <button id="threadsUp" class="step-btn" aria-label="增加线程">＋</button>
         </div>
       </div>
+      <button id="openSettings" class="btn btn-ghost">设置</button>
       <button id="chooseDir" class="btn btn-ghost">选择目录</button>
     </div>
   </header>
@@ -97,12 +98,64 @@
   </main>
 
   <footer class="footer">
-    <span>Teyuat Leyline · 提瓦特地脉</span>
+    <span>Teyvat Leyline · 提瓦特地脉</span>
     <span class="dot">·</span>
     <span>by 旅行者</span>
     <span class="spacer"></span>
     <span>GPLv3</span>
   </footer>
+
+  <!-- 完成/校验通知 -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <!-- 全局设置弹窗 -->
+  <div id="settingsModal" class="overlay hidden">
+    <div class="settings glass" role="dialog" aria-modal="true" aria-label="全局设置">
+      <div class="settings-head">
+        <div class="settings-title">地脉设置</div>
+        <button id="settingsClose" class="step-btn" aria-label="关闭">✕</button>
+      </div>
+      <div class="settings-body">
+        <label class="field">
+          <span class="field-label">全局并发线程数</span>
+          <input id="cfgThreads" type="number" min="1" max="16" value="8" />
+        </label>
+        <label class="field">
+          <span class="field-label">全局限速（KB/s，0=不限）</span>
+          <input id="cfgSpeed" type="number" min="0" value="0" />
+        </label>
+        <label class="field">
+          <span class="field-label">同时下载任务数</span>
+          <input id="cfgConcurrent" type="number" min="1" value="4" />
+        </label>
+        <label class="field">
+          <span class="field-label">失败自动重试次数</span>
+          <input id="cfgRetries" type="number" min="0" value="3" />
+        </label>
+        <label class="field">
+          <span class="field-label">重试间隔（秒）</span>
+          <input id="cfgDelay" type="number" min="0" step="0.5" value="2" />
+        </label>
+        <label class="field">
+          <span class="field-label">代理（http/socks5://，留空直连）</span>
+          <input id="cfgProxy" type="text" placeholder="socks5://127.0.0.1:1080" />
+        </label>
+        <div class="field switch-row">
+          <div class="switch-text">
+            <span class="field-label">完成后哈希校验</span>
+            <span class="field-hint">SHA256 校验文件完整性，失败则删除</span>
+          </div>
+          <button id="cfgHash" class="toggle" role="switch" aria-checked="false">
+            <span class="knob"></span>
+          </button>
+        </div>
+      </div>
+      <div class="settings-foot">
+        <button id="settingsCancel" class="btn btn-ghost">取消</button>
+        <button id="settingsSave" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

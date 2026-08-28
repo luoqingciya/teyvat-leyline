@@ -1,4 +1,4 @@
-# 提瓦特地脉 · Teyuat Leyline
+# 提瓦特地脉 · Teyvat Leyline
 
 > A Genshin Impact–styled, multi-threaded downloader for the desktop,
 > built with **pywebview** and managed entirely by **uv**.
@@ -32,16 +32,16 @@ Microsoft Edge WebView2 运行时，Win10/11 通常已自带）。
 uv sync
 
 # 2. 启动图形界面
-uv run teyuat-leyline
+uv run teyvat-leyline
 
 # 3. 无界面模式直接下载单个文件（便于脚本/服务器）
-uv run teyuat-leyline --url "https://example.com/file.zip" --output ./downloads
+uv run teyvat-leyline --url "https://example.com/file.zip" --output ./downloads
 ```
 
 也可以直接用模块方式运行：
 
 ```bash
-uv run python -m teyuat_leyline
+uv run python -m teyvat_leyline
 ```
 
 ## 📦 一键打包（Windows）
@@ -59,7 +59,7 @@ uv run python -m teyuat_leyline
 脚本会自动：检测 WebView2 运行时、`uv sync --extra build` 安装构建依赖、
 收集前端资源与 webview/pythonnet 运行时、生成并校验产物。
 
-默认产物：`dist/TeyuatLeyline/TeyuatLeyline.exe`（单目录版会把 `dist/TeyuatLeyline`
+默认产物：`dist/TeyvatLeyline/TeyvatLeyline.exe`（单目录版会把 `dist/TeyvatLeyline`
 整个目录分发给别人即可运行）。
 
 图标已内置在 `assets/app.ico`（含 16–256 各分辨率）并由打包脚本自动启用；
@@ -69,14 +69,14 @@ uv run python -m teyuat_leyline
 ## 🗂️ 项目结构
 
 ```text
-teyuat-leyline/
+teyvat-leyline/
 ├─ pyproject.toml            # uv / hatchling 构建与依赖清单
 ├─ uv.lock                  # uv 生成的锁定文件
 ├─ build.ps1                # 一键打包（PyInstaller）脚本
 ├─ launcher.py              # PyInstaller 打包入口
 ├─ tools/make_icon.py       # 应用图标生成脚本（Pillow）
 ├─ assets/app.ico           # 应用图标（含多分辨率）
-├─ src/teyuat_leyline/
+├─ src/teyvat_leyline/
 │  ├─ app.py                 # pywebview 窗口与 JS 桥接
 │  ├─ __main__.py            # CLI 入口
 │  └─ core/

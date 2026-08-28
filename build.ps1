@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Teyuat Leyline 一键打包脚本（Windows）。
+    Teyvat Leyline 一键打包脚本（Windows）。
 
 .DESCRIPTION
     使用 uv 同步依赖后，通过 PyInstaller 把 pywebview 应用打包为独立可执行程序，
@@ -17,7 +17,7 @@ param(
     [switch]$Clean,
     [switch]$OneFile,
     [switch]$Zip,
-    [string]$Name = "TeyuatLeyline",
+    [string]$Name = "TeyvatLeyline",
     [string]$Icon = "assets/app.ico"
 )
 
@@ -54,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "uv sync 失败。" }
 
 # ---- 3. 准备 PyInstaller 参数 ----------------------------------------------
 $mode  = if ($OneFile) { "--onefile" } else { "--onedir" }
-$webSrc = (Resolve-Path "src/teyuat_leyline/web").Path
+$webSrc = (Resolve-Path "src/teyvat_leyline/web").Path
 $pyiArgs = @(
     "--noconfirm", "--clean", $mode, "--windowed",
     "--name", $Name,
@@ -62,9 +62,9 @@ $pyiArgs = @(
     "--workpath", "build/pyinstaller",
     "--distpath", "dist",
     # 打包前端资源（Windows 用 ; 分隔 src;dest）
-    "--add-data", "$webSrc;teyuat_leyline/web",
+    "--add-data", "$webSrc;teyvat_leyline/web",
     # 收集第三方/自有包与子模块，避免 webview 运行时后端缺失
-    "--collect-all", "teyuat_leyline",
+    "--collect-all", "teyvat_leyline",
     "--collect-all", "webview",
     "--collect-all", "clr_loader",
     "--collect-all", "pythonnet",

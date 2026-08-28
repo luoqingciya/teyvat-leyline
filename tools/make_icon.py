@@ -1,4 +1,4 @@
-"""绘制 Teyuat Leyline 应用图标（Pillow，代码原生、可复现）。
+"""绘制 Teyvat Leyline 应用图标（Pillow，代码原生、可复现）。
 
 用法：``uv run --with pillow python tools/make_icon.py``
 

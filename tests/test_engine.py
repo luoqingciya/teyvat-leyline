@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from teyuat_leyline.core.engine import DownloadEngine
-from teyuat_leyline.core.http_client import probe, sanitize_filename
+from teyvat_leyline.core.engine import DownloadEngine
+from teyvat_leyline.core.http_client import probe, sanitize_filename
 
 
 def _content(size: int) -> bytes:

@@ -1,7 +1,7 @@
 """PyInstaller 打包入口。
 
-以顶层脚本方式运行以构建独立可执行文件；``python -m teyuat_leyline``、
-``uv run teyuat-leyline`` 仍走各自的官方入口。
+以顶层脚本方式运行以构建独立可执行文件；``python -m teyvat_leyline``、
+``uv run teyvat-leyline`` 仍走各自的官方入口。
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "src"))
 
-from teyuat_leyline.__main__ import main  # noqa: E402  (仅在脚本模式下插入路径后导入)
+from teyvat_leyline.__main__ import main  # noqa: E402  (仅在脚本模式下插入路径后导入)
 
 if __name__ == "__main__":
     main()
