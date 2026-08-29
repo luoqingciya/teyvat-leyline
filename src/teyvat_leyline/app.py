@@ -1,11 +1,9 @@
-"""pywebview 桌面应用：窗口创建、JS-Python 桥接、进度事件推送。"""
+"""pywebview 桌面应用：窗口创建、JS-Python 桥接（进度由前端轮询获取）。"""
 
 from __future__ import annotations
 
 import json
-import queue
 import sys
-import threading
 from importlib import resources
 from pathlib import Path
 
@@ -136,14 +134,6 @@ class TeyvatApp:
             num_threads=8,
         )
         self._apply_saved_config()
-        # 事件回推统一交给单一推送线程串行执行 evaluate_js，
-        # 避免多个下载线程并发触碰 webview（Windows 下不安全）。
-        self._push_queue: queue.Queue = queue.Queue()
-        self._stop_push = threading.Event()
-        self._pusher = threading.Thread(
-            target=self._push_loop, name="ui-pusher", daemon=True
-        )
-        self._pusher.start()
 
     def _apply_saved_config(self) -> None:
         """启动时从本地配置文件恢复全局设置。"""
@@ -189,30 +179,9 @@ class TeyvatApp:
             pass
 
     def _on_event(self, event: str, task: dict) -> None:
-        """引擎回调（可能来自后台线程）→ 入队，交由推送线程转 JS 事件。"""
-        self._push_queue.put((event, task))
-
-    def _push_loop(self) -> None:
-        while not self._stop_push.is_set():
-            try:
-                event, task = self._push_queue.get(timeout=0.1)
-            except queue.Empty:
-                continue
-            window = self.window
-            if window is None:
-                continue
-            payload = json.dumps({"event": event, "task": task}, ensure_ascii=True)
-            try:
-                window.evaluate_js(f"window.__teyvatUI && window.__teyvatUI({payload})")
-            except Exception:  # noqa: BLE001  (窗口关闭期间的回调可安全忽略)
-                pass
+        """引擎进度回调。进度改为前端轮询 get_tasks() 获取，无需再主动推送。"""
 
     def close(self) -> None:
-        self._stop_push.set()
-        try:
-            self._pusher.join(timeout=0.5)
-        except RuntimeError:
-            pass
         if self.window:
             try:
                 self.window.destroy()
@@ -250,4 +219,6 @@ def run(*, debug: bool = False) -> None:
         text_select=True,
     )
     app.window = window
-    webview.start(debug=debug, private_mode=False)
+    # 改用内存临时 profile：WebView2 持久化目录 %APPDATA%\pywebview 在本机反复启动
+    # 后损坏/被锁，导致一打开就“未响应”。应用不依赖浏览器存储，安全改用 InPrivate。
+    webview.start(debug=debug, private_mode=True)

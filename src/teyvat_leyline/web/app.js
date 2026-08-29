@@ -188,6 +188,7 @@ function upsert(task) {
   // 快照未变化则跳过，避免高频重复更新
   if (prev && JSON.stringify(prev) === JSON.stringify(task)) return;
   state.tasks.set(task.id, task);
+  notifyTransition(prev, task);
 
   const listEl = document.getElementById("taskList");
   let node = cardNodes.get(task.id);
@@ -239,7 +240,6 @@ function updateStats() {
 }
 
 /* ---------- 通知 toast ---------- */
-let _notified = new Set(); // 已弹出提示的任务（避免重复）
 function toast(message, type = "info") {
   const box = document.getElementById("toasts");
   const t = el(`<div class="toast ${type}">${esc(message)}</div>`);
@@ -250,26 +250,16 @@ function toast(message, type = "info") {
   }, 3800);
 }
 
-/* ---------- PyWebview 事件回推 ---------- */
-window.__teyvatUI = function (msg) {
-  const { event, task } = msg || {};
-  if (event === "forget") {
-    if (task && task.id) _notified.delete(task.id);
-    forget(task);
-    return;
-  }
-  if (task && task.id && task.status === "completed") {
-    if (!_notified.has(task.id)) {
-      _notified.add(task.id);
-      const ok = task.verified === true;
-      toast(`「${task.filename}」下载完成${ok ? "，哈希校验通过" : ""}`, ok ? "success" : "info");
-    }
-  } else if (task && task.id && task.status === "error" && !_notified.has(task.id)) {
-    _notified.add(task.id);
+/* ---------- 状态跳变提示 ---------- */
+function notifyTransition(prev, task) {
+  if (!prev) return; // 启动首帧快照，不弹
+  if (task.status === "completed" && prev.status !== "completed") {
+    const ok = task.verified === true;
+    toast(`「${task.filename}」下载完成${ok ? "，哈希校验通过" : ""}`, ok ? "success" : "info");
+  } else if (task.status === "error" && prev.status !== "error") {
     toast(`「${task.filename}」下载异常中断`, "error");
   }
-  upsert(task);
-};
+}
 
 /* ---------- 初始化 & 交互 ---------- */
 function clamp(v, lo, hi, def) {
@@ -372,7 +362,7 @@ async function saveSettings() {
   closeSettings();
 }
 
-/* 兜底刷新：即使事件丢失也能拿到最终状态 */
+/* 进度/状态刷新：前端定时轮询后端全量快照，避免后台线程直接调用 webview */
 async function refresh() {
   if (!api()) return;
   try {
@@ -382,7 +372,7 @@ async function refresh() {
 }
 
 /* 初始化：静态 UI 只绑定一次（避免 DOMContentLoaded 与 pywebviewready 重复执行）。
-   采用纯事件驱动，无需周期轮询；仅在启动时拉一次全量快照兜底。 */
+   进度采用定时轮询 refresh() 更新，页面无每帧动画、无后台线程触碰 webview。 */
 let _booted = false;
 function ensureUI() {
   if (_booted) return;
@@ -396,6 +386,7 @@ function boot() {
   if (api()) {
     api().get_config().then(applyConfig).catch(() => {});
     refresh();
+    setInterval(refresh, 800);
   }
 }
 

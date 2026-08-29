@@ -82,7 +82,9 @@ if ($Icon -and (Test-Path $Icon)) {
 
 # ---- 4. 运行 PyInstaller ---------------------------------------------------
 Write-Step "运行 PyInstaller ($mode)"
-$native = @("run", "pyinstaller") + $pyiArgs
+# 用 `python -m PyInstaller` 而非 `pyinstaller` 控制台入口：
+# uv 0.12.x 的 trampoline 在解析脚本路径时会报 “failed to canonicalize script path”。
+$native = @("run", "python", "-m", "PyInstaller") + $pyiArgs
 & uv @native
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller 打包失败（退出码 $LASTEXITCODE）。" }
 
