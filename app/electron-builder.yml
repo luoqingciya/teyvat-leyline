@@ -4,7 +4,7 @@ copyright: Copyright © 2026 luoqingciya
 
 directories:
   buildResources: build
-  output: release2
+  output: release
 
 # 应用本体只打包 out/ 下的编译产物
 files:
