@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,53 @@ from . import __app_name__, __version__
 from .core.engine import DownloadEngine
 
 PORT_MARKER = "PORT="
+
+
+def default_save_dir() -> str:
+    """返回系统默认的“下载”文件夹；个别环境取不到时回退到用户目录下的 Downloads，再不行才用当前目录。
+
+    打包后后端工作目录是 Electron 的 resources，已不再适合当作下载目录，
+    所以改为让文件下载到用户熟悉的“下载”。
+    """
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            # FOLDERID_Downloads = {374DE290-123F-4565-9164-39C4925E467B}
+            class _GUID(ctypes.Structure):
+                _fields_ = [
+                    ("Data1", ctypes.c_ulong),
+                    ("Data2", ctypes.c_ushort),
+                    ("Data3", ctypes.c_ushort),
+                    ("Data4", ctypes.c_ubyte * 8),
+                ]
+
+            knowndir = _GUID(
+                0x374DE290, 0x123F, 0x4565, (ctypes.c_ubyte * 8)(0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B)
+            )
+            sh = ctypes.windll.shell32.SHGetKnownFolderPath
+            sh.argtypes = [ctypes.POINTER(_GUID), wintypes.DWORD, wintypes.HANDLE, ctypes.POINTER(ctypes.c_wchar_p)]
+            sh.restype = ctypes.HRESULT
+            path = ctypes.c_wchar_p()
+            if sh(ctypes.byref(knowndir), 0, None, ctypes.byref(path)) == 0 and path.value:
+                return path.value
+        except (AttributeError, OSError):
+            pass
+    fallback = Path.home() / "Downloads"
+    if fallback.is_dir():
+        return str(fallback)
+    return str(Path.cwd())
+
+
+def config_path() -> Path:
+    """配置文件放到用户级专用目录，避免默认下载目录变更后把配置写进下载文件夹。"""
+    cfg_dir = Path.home() / ".teyvat-leyline"
+    try:
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    return cfg_dir / "teyvat-config.json"
 
 
 # 注意：Pydantic 模型必须在模块级定义。
@@ -54,8 +102,8 @@ class Server:
     """持有引擎与配置，方法签名与原 ``Bridge``/``TeyvatApp`` 一一对应。"""
 
     def __init__(self) -> None:
-        self.save_dir = str(Path.cwd())
-        self._config_file = Path(self.save_dir) / "teyvat-config.json"
+        self.save_dir = default_save_dir()
+        self._config_file = config_path()
         # url -> 该任务的去除重去重判断需要在 add 前查 is_known
         self.engine = DownloadEngine(
             listener=self._on_event,
@@ -130,7 +178,12 @@ class Server:
 
     # ---- 业务方法（对应原 js_api Bridge） -----------------------------
     def get_config(self) -> dict:
-        return {**self.engine.get_config(), "version": __version__, "appName": __app_name__}
+        return {
+            **self.engine.get_config(),
+            "version": __version__,
+            "appName": __app_name__,
+            "saveDir": self.save_dir,
+        }
 
     def get_tasks(self) -> list[dict]:
         return self.engine.list_tasks()
