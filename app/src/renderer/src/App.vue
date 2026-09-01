@@ -81,10 +81,16 @@ function stepThreads(delta) {
 async function addTaskFromInput() {
   const url = urlInput.value.trim()
   if (!url) return
-  const res = await api.addTask(url)
-  urlInput.value = ''
-  if (res && !res.ok && res.known) toaster.value?.push('该链接已在下载历史中，已跳过避免重复下载', 'info')
-  else if (res && !res.ok && res.error) toaster.value?.push(res.error, 'error')
+  try {
+    const res = await api.addTask(url)
+    urlInput.value = ''
+    if (res && !res.ok && res.known) toaster.value?.push('该链接已在下载历史中，已跳过避免重复下载', 'info')
+    else if (res && !res.ok && res.error) toaster.value?.push(res.error, 'error')
+    // 立即把新任务纳入列表，不必等下一轮 WS 推送或轮询
+    await refresh()
+  } catch (e) {
+    toaster.value?.push('导入失败: ' + e.message, 'error')
+  }
 }
 
 async function chooseDir() {
@@ -122,10 +128,15 @@ async function boot() {
   }
   await refresh()
 
-  wsOff = subscribeProgress(({ task }) => {
-    if (task) upsert(task)
-    connected.value = true
-  })
+  wsOff = subscribeProgress(
+    ({ task }) => {
+      if (task) upsert(task)
+    },
+    (state) => {
+      // connected 反映 WebSocket 是否真正连通，而非是否收到过任务事件
+      connected.value = state === 'open'
+    }
+  )
 
   // 兜底轮询，确保与后端一致
   pollTimer = setInterval(async () => {

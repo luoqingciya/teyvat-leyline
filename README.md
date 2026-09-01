@@ -11,16 +11,22 @@ Python 下载引擎参考 **aria2** 的 byte-range 分片并发思想，支持�
 
 Python 依赖由 [uv](https://docs.astral.sh/uv/) 管理；前端依赖由 npm 管理。
 
----
+***
 
 ## ✨ 功能特性
 
 - **多线程分片下载**：探测服务器后按 `Range` 把大文件切成多段并发下载；
+
 - **断点续传**：使用 `.part` 临时文件 + `.part.json` 段状态清单，可随时暂停/恢复；
+
 - **退化为单流**：对不支持 `Range` 或大小未知的资源自动改用顺序单流下载；
+
 - **进度实时推送**：后端经 WebSocket 推送速度、剩余时间与百分比到前端；
+
 - **原神风 GUI**：深蓝地脉底色 + 金色“星落”光效、毛玻璃卡片、发光任务卡；
+
 - **多任务队列**：同时管理多个下载，各自独立进度，支持每任务限速与调整线程数；
+
 - **限速 / 并发 / 重试 / 代理 / SHA256 校验**：全局与每任务均可配置。
 
 ## 🏗️ 技术架构
@@ -42,6 +48,7 @@ Python 依赖由 [uv](https://docs.astral.sh/uv/) 管理；前端依赖由 npm �
 
 - **随机端口**：后端每次启动向 stdout 打印 `PORT=<n>`，Electron 读取后传给前端，
   避免端口冲突；
+
 - **进程生命周期**：Electron 主进程拉起后端子进程，窗口关闭时一并回收。
 
 ## 🚀 快速开始
@@ -81,7 +88,7 @@ cd ..
 
 # 3) 打包桌面应用
 cd app
-npm run dist        # 生成 NSIS 安装包，产物在 app/release2/
+npm run dist        # 生成 NSIS 安装包，产物在 app/release/
 npm run dist:dir    # 仅生成免安装解包目录（便于测试）
 ```
 
@@ -150,7 +157,9 @@ teyvat-leyline/
 
 - [aria2](https://github.com/aria2/aria2) —— 经典的多协议、多线程（多连接）
   CLI 下载器，本项目的 `Range` 分片并发与断点续传思路受其启发；
+
 - [Electron](https://github.com/electron/electron) —— 桌面应用壳与打包方案；
+
 - [httpx](https://github.com/encode/httpx) —— HTTP 客户端库，用于探测与流式下载。
 
 ## 📄 许可证

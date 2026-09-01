@@ -61,13 +61,27 @@ function startBackend() {
   backend.on('error', (err) => console.error('[backend] 启动失败', err))
 }
 
-function stopBackend() {
-  if (backend && backend.exitCode === null) {
+function killProcessTree(pid) {
+  if (process.platform === 'win32') {
+    // 强制结束包括子进程在内的整棵进程树。
+    // PyInstaller 单文件后端会解压出真正的 uvicorn 子进程，仅 kill 引导进程会残留。
     try {
-      backend.kill()
+      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
     } catch {
       /* ignore */
     }
+  } else {
+    try {
+      process.kill(pid, 'SIGTERM')
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function stopBackend() {
+  if (backend && backend.exitCode === null) {
+    killProcessTree(backend.pid)
   }
   backend = null
   backendPort = null

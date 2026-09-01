@@ -26,6 +26,30 @@ from .core.engine import DownloadEngine
 PORT_MARKER = "PORT="
 
 
+# 注意：Pydantic 模型必须在模块级定义。
+# 若在 create_app 内部定义，FastAPI 通过 __globals__ 解析类型时会把它们变成
+# 无法解析的 ForwardRef，导致 `body: SomeModel` 被当作 query 参数，所有带请求体的
+# 接口都返回 422（即“下载不了，报 422”的问题）。
+class SettingsBody(BaseModel):
+    settings: dict[str, Any]
+
+
+class TaskBody(BaseModel):
+    url: str
+
+
+class SpeedBody(BaseModel):
+    kbps: int
+
+
+class ThreadsBody(BaseModel):
+    n: int
+
+
+class DirBody(BaseModel):
+    path: str
+
+
 class Server:
     """持有引擎与配置，方法签名与原 ``Bridge``/``TeyvatApp`` 一一对应。"""
 
@@ -196,24 +220,6 @@ def create_app(server: Server) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    class SettingsBody(BaseModel):
-        settings: dict[str, Any]
-
-    class TaskBody(BaseModel):
-        url: str
-
-    class IntBody(BaseModel):
-        value: int = 0  # 由具体接口复用
-
-    class SpeedBody(BaseModel):
-        kbps: int
-
-    class ThreadsBody(BaseModel):
-        n: int
-
-    class DirBody(BaseModel):
-        path: str
 
     @app.get("/api/config")
     def get_config() -> dict:
