@@ -1,14 +1,15 @@
 # 提瓦特地脉 · Teyvat Leyline
 
 > A Genshin Impact–styled, multi-threaded downloader for the desktop,
-> built with **pywebview** and managed entirely by **uv**.
+> built with **Electron + Python** hybrid architecture (Vue3 frontend + FastAPI backend),
+> and managed by **uv** (Python) + **npm** (frontend).
 
-一款原神（Genshin Impact）二次元风格的 **Python 多线程下载器**。它基于 `pywebview`
-提供原生桌面窗口，前端使用纯 HTML/CSS/JS 复刻“地脉”光影的美术质感；
-下载引擎参考 **aria2** 的 byte-range 分片并发思想，支持多线程、断点续传、
+一款原神（Genshin Impact）二次元风格的 **多线程下载器**。桌面壳采用 **Electron**，
+前端用 **Vue 3** 复刻“地脉”光影的美术质感，后端为 **FastAPI** 本地 HTTP 服务，
+Python 下载引擎参考 **aria2** 的 byte-range 分片并发思想，支持多线程、断点续传、
 暂停、恢复与取消。
 
-本项目依赖完全由 [uv](https://docs.astral.sh/uv/) 管理，开箱即用，无需手动安装依赖。
+Python 依赖由 [uv](https://docs.astral.sh/uv/) 管理；前端依赖由 npm 管理。
 
 ---
 
@@ -17,77 +18,118 @@
 - **多线程分片下载**：探测服务器后按 `Range` 把大文件切成多段并发下载；
 - **断点续传**：使用 `.part` 临时文件 + `.part.json` 段状态清单，可随时暂停/恢复；
 - **退化为单流**：对不支持 `Range` 或大小未知的资源自动改用顺序单流下载；
-- **进度监控**：后台线程按固定节流推送速度、剩余时间与百分比到前端；
-- **原神风 GUI**：深蓝地脉底色 + 金色的“星落”光效、毛玻璃卡片、发光任务卡；
-- **uv 全托管**：`uv sync`、`uv lock`、`uv run`，无 pip 侵入；
-- **多任务队列**：同时管理多个下载，各自独立进度。
+- **进度实时推送**：后端经 WebSocket 推送速度、剩余时间与百分比到前端；
+- **原神风 GUI**：深蓝地脉底色 + 金色“星落”光效、毛玻璃卡片、发光任务卡；
+- **多任务队列**：同时管理多个下载，各自独立进度，支持每任务限速与调整线程数；
+- **限速 / 并发 / 重试 / 代理 / SHA256 校验**：全局与每任务均可配置。
+
+## 🏗️ 技术架构
+
+```
+┌─────────────────────────── Electron 桌面壳 ───────────────────────────┐
+│  app/src/main/index.js     主进程：spawn 后端、读端口、目录选择 IPC       │
+│        │  contextBridge (preload)                                      │
+│  app/src/renderer/         Vue3 + Vite 前端                            │
+│        │  fetch + WebSocket                                            │
+└────────┼───────────────────────────────────────────────────────────────┘
+         ▼  127.0.0.1:<随机端口>
+┌───────────────────────── Python 后端 ──────────────────────────────────┐
+│  src/teyvat_leyline/server.py   FastAPI HTTP + WebSocket（随机端口）     │
+│        │                                                               │
+│  core/engine.py                分片多线程下载引擎                       │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+- **随机端口**：后端每次启动向 stdout 打印 `PORT=<n>`，Electron 读取后传给前端，
+  避免端口冲突；
+- **进程生命周期**：Electron 主进程拉起后端子进程，窗口关闭时一并回收。
 
 ## 🚀 快速开始
 
-要求：Python 3.11+（推荐 3.12）、桌面系统（当前以 Windows 为主，pywebview 需要
-Microsoft Edge WebView2 运行时，Win10/11 通常已自带）。
+要求：Python 3.11+、Node.js 18+（打包还需 npm）。
+
+### 1. Python 后端 / CLI
 
 ```bash
-# 1. 同步依赖并创建虚拟环境（自动下载/使用 3.12）
+# 同步依赖并创建虚拟环境
 uv sync
 
-# 2. 启动图形界面
-uv run teyvat-leyline
-
-# 3. 无界面模式直接下载单个文件（便于脚本/服务器）
+# 无界面模式直接下载单个文件（便于脚本/服务器）
 uv run teyvat-leyline --url "https://example.com/file.zip" --output ./downloads
 ```
 
-也可以直接用模块方式运行：
+### 2. 桌面开发（Electron + Vue3）
 
 ```bash
-uv run python -m teyvat_leyline
+cd app
+npm install
+npm run dev        # 启动 Electron 开发窗口，自动拉起 Python 后端
 ```
 
-## 📦 一键打包（Windows）
+开发时后端每次启动分配随机端口，前端自动从 Electron 主进程获取并连接。
 
-仓库内置 `build.ps1`，用 **PyInstaller** 把 pywebview 应用打成独立可执行程序，
-分发到没有安装 Python 的机器也能直接运行。
+## 📦 桌面打包（Windows）
 
 ```powershell
-.\build.ps1                    # 单目录版（推荐，启动最快、最稳）
-.\build.ps1 -OneFile           # 打成单个 EXE
-.\build.ps1 -Zip               # 打包完成后再压缩为 zip
-.\build.ps1 -Clean             # 先清理 build/ 与 dist/
+# 1) 安装前端依赖
+cd app
+npm install
+
+# 2) 构建 Python 后端为单文件 EXE（产出 backend-dist/teyvat-server.exe）
+cd ..
+.\build-backend.ps1
+
+# 3) 打包桌面应用
+cd app
+npm run dist        # 生成 NSIS 安装包，产物在 app/release2/
+npm run dist:dir    # 仅生成免安装解包目录（便于测试）
 ```
 
-脚本会自动：检测 WebView2 运行时、`uv sync --extra build` 安装构建依赖、
-收集前端资源与 webview/pythonnet 运行时、生成并校验产物。
+> **国内网络提示**：electron-builder 下载 Electron / NSIS 二进制可能较慢或失败，
+> 可先设置国内镜像再打包：
+>
+> ```powershell
+> $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+> $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
+> ```
 
-默认产物：`dist/TeyvatLeyline/TeyvatLeyline.exe`（单目录版会把 `dist/TeyvatLeyline`
-整个目录分发给别人即可运行）。
-
-图标已内置在 `assets/app.ico`（含 16–256 各分辨率）并由打包脚本自动启用；
-如需重绘，运行 `uv run --with pillow python tools/make_icon.py` 即可重新生成
-`assets/app.png` 与 `assets/app.ico`。
+打包产物会把后端 EXE 放到安装目录的 `resources/backend/` 下，由 Electron 主进程启动。
 
 ## 🗂️ 项目结构
 
 ```text
 teyvat-leyline/
-├─ pyproject.toml            # uv / hatchling 构建与依赖清单
-├─ uv.lock                  # uv 生成的锁定文件
-├─ build.ps1                # 一键打包（PyInstaller）脚本
-├─ launcher.py              # PyInstaller 打包入口
-├─ tools/make_icon.py       # 应用图标生成脚本（Pillow）
-├─ assets/app.ico           # 应用图标（含多分辨率）
+├─ app/                        # Electron + Vue3 桌面前端
+│  ├─ src/
+│  │  ├─ main/index.js         # Electron 主进程（拉起后端、读端口、目录选择）
+│  │  ├─ preload/index.js      # contextBridge 桥接
+│  │  └─ renderer/             # Vue3 渲染层
+│  │     ├─ src/
+│  │     │  ├─ App.vue         # 主界面
+│  │     │  ├─ api.js          # fetch + WebSocket 封装
+│  │     │  ├─ utils.js        # 格式化工具
+│  │     │  ├─ assets/style.css
+│  │     │  └─ components/     # TaskCard / SettingsModal / Toaster
+│  │     └─ index.html
+│  ├─ electron.vite.config.js  # electron-vite 构建配置
+│  ├─ electron-builder.yml     # 桌面打包配置
+│  └─ package.json
 ├─ src/teyvat_leyline/
-│  ├─ app.py                 # pywebview 窗口与 JS 桥接
-│  ├─ __main__.py            # CLI 入口
+│  ├─ server.py                # FastAPI HTTP + WebSocket 后端入口
+│  ├─ __main__.py              # CLI：无界面下载 + 启动指引
 │  └─ core/
-│     ├─ engine.py           # 任务调度 + 分片多线程 + 断点
-│     ├─ http_client.py      # 探测 / Range / 文件名工具
-│     └─ models.py           # 数据模型
-│  └─ web/
-│     ├─ index.html          # 前端页面
-│     ├─ style.css           # 原神风样式
-│     └─ app.js              # 前端逻辑与进度渲染
-└─ tests/                    # 引擎与工具测试
+│     ├─ engine.py             # 任务调度 + 分片多线程 + 断点
+│     ├─ http_client.py        # 探测 / Range / 文件名工具
+│     ├─ models.py             # 数据模型
+│     └─ ratelimiter.py        # 限速 / 并发控制
+├─ backend_entry.py            # PyInstaller 后端包内入口
+├─ build-backend.ps1           # 打包后端为单文件 EXE
+├─ tools/make_icon.py          # 应用图标生成脚本（Pillow）
+├─ assets/app.ico              # 应用图标（含多分辨率）
+├─ backend-dist/               # 后端 EXE 产物（打包生成，不入库）
+├─ tests/                      # 引擎与工具测试
+├─ pyproject.toml              # uv / hatchling 构建与依赖清单、入口
+└─ uv.lock                     # uv 生成的锁定文件
 ```
 
 ## 🧭 设计说明
@@ -108,8 +150,7 @@ teyvat-leyline/
 
 - [aria2](https://github.com/aria2/aria2) —— 经典的多协议、多线程（多连接）
   CLI 下载器，本项目的 `Range` 分片并发与断点续传思路受其启发；
-- [pywebview](https://github.com/r0x0r/pywebview) —— 本项目所使用的桌面
-  WebView 框架（本仓库也作为其使用示例出现）；
+- [Electron](https://github.com/electron/electron) —— 桌面应用壳与打包方案；
 - [httpx](https://github.com/encode/httpx) —— HTTP 客户端库，用于探测与流式下载。
 
 ## 📄 许可证

@@ -1,7 +1,7 @@
 """命令行入口。
 
-``uv run teyvat-leyline`` 启动图形界面；
-``uv run python -m teyvat_leyline --url <链接>`` 以无界面模式下载单个文件。
+``uv run teyvat-leyline --url <链接>`` 以无界面模式下载单个文件；
+不带参数即打印 Electron 桌面前端的启动指引。桌面 GUI 由 ``app/`` 前端 + ``server.py`` 后端构成。
 """
 
 from __future__ import annotations
@@ -21,22 +21,18 @@ def _safe_stdout(text: str) -> None:
 
 def _cli_download(url: str, output: str, threads: int) -> int:
     from .core.engine import DownloadEngine
+    from .core.models import TaskStatus
 
     engine = DownloadEngine(save_dir=output, num_threads=threads)
-    engine.add(url)
-    # 简单轮询直到任务结束
-    task_id = next(iter(engine._tasks), "")
+    task_id = engine.add(url)
     try:
-        from .core.models import TaskStatus
-
         while True:
             task = engine._tasks.get(task_id)
             if task is None:
                 break
-            status = task.status
-            if status not in (TaskStatus.PROBING, TaskStatus.DOWNLOADING, TaskStatus.QUEUED):
+            if task.status not in (TaskStatus.PROBING, TaskStatus.DOWNLOADING, TaskStatus.QUEUED):
                 break
-            _safe_stdout(f"\r{task.filename}: {task.downloaded}/{task.total_size or '?'} ({status.value})")
+            _safe_stdout(f"\r{task.filename}: {task.downloaded}/{task.total_size or '?'} ({task.status.value})")
             import time
 
             time.sleep(0.2)
@@ -45,7 +41,6 @@ def _cli_download(url: str, output: str, threads: int) -> int:
             else f"\n状态：{task.status.value if task else '未知'}"
         )
     except KeyboardInterrupt:
-        engine.shutdown()
         return 130
     finally:
         engine.shutdown()
@@ -62,9 +57,11 @@ def main() -> None:
     if args.url:
         sys.exit(_cli_download(args.url, args.output, args.threads))
 
-    from .app import run
-
-    run()
+    _safe_stdout(
+        "提瓦特地脉采用 Electron + Python 混合架构，桌面界面通过 web 前端搭建。\n"
+        "请执行 `cd app && npm run dev` 启动，或运行打包好的 TeyvatLeyline。\n"
+        "无界面下载请使用：teyvat-leyline --url <链接>\n"
+    )
 
 
 if __name__ == "__main__":

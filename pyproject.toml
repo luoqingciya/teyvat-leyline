@@ -1,13 +1,13 @@
 [project]
 name = "teyvat-leyline"
 version = "0.1.0"
-description = "提瓦特地脉 · Teyvat Leyline — Genshin Impact 风格的 Python 多线程下载器（pywebview 图形界面 + uv 依赖管理）"
+description = "提瓦特地脉 · Teyvat Leyline — Genshin Impact 风格的 Python 多线程下载器（Electron + Python 混合开发，FastAPI 后端 + Vue3 界面）"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "luoqingciya", email = "luoqingciya@users.noreply.github.com" }]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-keywords = ["downloader", "multi-threaded", "pywebview", "genshin-impact", "aria2", "segment"]
+keywords = ["downloader", "multi-threaded", "electron", "fastapi", "genshin-impact", "aria2", "segment"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Win32 (MS Windows)",
@@ -22,7 +22,8 @@ classifiers = [
 
 dependencies = [
   "httpx[socks]>=0.27.0",
-  "pywebview>=5.0",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,7 @@ build = [
 
 [project.scripts]
 teyvat-leyline = "teyvat_leyline.__main__:main"
+teyvat-server = "teyvat_leyline.server:main"
 
 [build-system]
 requires = ["hatchling>=1.25"]

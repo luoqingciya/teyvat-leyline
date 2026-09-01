@@ -30,3 +30,13 @@ downloads/
 *.part.json
 *.log
 webview_cookies.db
+teyvat-config.json
+
+# Electron / Vite
+app/node_modules/
+app/out/
+app/release/
+app/release2/
+app/dist/
+backend-dist/
+teyvat-server.spec

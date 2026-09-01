@@ -1,0 +1,42 @@
+appId: com.luoqingciya.teyvat-leyline
+productName: TeyvatLeyline
+copyright: Copyright © 2026 luoqingciya
+
+directories:
+  buildResources: build
+  output: release2
+
+# 应用本体只打包 out/ 下的编译产物
+files:
+  - out/**
+  - package.json
+
+# Python 后端 PyInstaller 产物放到 resources/backend，
+# 主进程在生产模式下从 process.resourcesPath/backend 拉起
+extraResources:
+  - from: ../backend-dist
+    to: backend
+    filter:
+      - teyvat-server.exe
+      - resources/**
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  executableName: TeyvatLeyline
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  artifactName: ${productName}-${version}-Setup.${ext}
+  shortcutName: 提瓦特地脉
+
+# 后端目录较大，关闭默认压缩以加快安装/启动
+compression: normal

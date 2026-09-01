@@ -28,7 +28,7 @@ html, body {
   overflow-x: hidden;
 }
 
-/* ---- 动态背景 ---- */
+/* ---- 动态背景（静态渲染，不做逐帧动画） ---- */
 .bg {
   position: fixed;
   inset: 0;
@@ -42,9 +42,6 @@ html, body {
 }
 
 .aurora {
-  /* 静态色块。原先的 drift 无限循环动画会创建大尺寸合成层，
-     拖动/点击窗口时逐帧重合成，在高 DPI / 软件渲染下把 UI 卡成“未响应”。
-     与星星一样改为静态渲染，消除全部动态合成层，观感无明显差异。 */
   position: absolute;
   opacity: 0.5;
   border-radius: 50%;
@@ -60,9 +57,6 @@ html, body {
   background: #fff;
   border-radius: 50%;
   opacity: 0.8;
-  /* 原先每颗都有无限 twinkle 动画 -> 每颗一个独立合成层。
-     窗口拖动时这些层要逐层重合成上屏，高 DPI/软渲染下会卡成“未响应”。
-     改为静态渲染，消除全部动态合成层，观感无明显差异。 */
 }
 
 /* ---- 顶层 ---- */
@@ -176,7 +170,6 @@ html, body {
 #urlInput:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(114,229,207,.15); }
 
 .glass {
-  /* 用半透明渐变模拟玻璃，避免 backdrop-filter 随背景动画每帧重合成（WebView2 性能杀手） */
   background: linear-gradient(160deg, rgba(20, 26, 50, 0.9), rgba(13, 19, 38, 0.94));
   border: 1px solid var(--line);
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -281,17 +274,8 @@ html, body {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--teal-deep), var(--gold), var(--viol));
   box-shadow: 0 0 12px rgba(245,210,131,.55);
-  position: relative;
   transition: width .25s ease;
 }
-.progress-fill::after {
-  content: "";
-  position: absolute; top: 0; left: -20%; height: 100%; width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
-  will-change: transform;
-  animation: shimmer 1.6s linear infinite;
-}
-@keyframes shimmer { 0% { transform: translateX(0); } 100% { transform: translateX(480%); } }
 
 .task-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .mini-btn {
@@ -342,7 +326,6 @@ html, body {
   background: rgba(6, 9, 20, 0.55);
   padding: 20px;
 }
-.overlay.hidden { display: none; }
 .settings {
   width: 440px; max-width: 100%;
   max-height: 90vh; overflow-y: auto;
@@ -426,5 +409,3 @@ html, body {
 .toast.error { border-color: rgba(255,138,138,.55); color: var(--danger); }
 .toast.info { border-color: rgba(114,229,207,.5); color: var(--teal); }
 @keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-.toast.out { animation: slide-out .25s ease forwards; }
-@keyframes slide-out { to { transform: translateX(40px); opacity: 0; } }
