@@ -1,5 +1,5 @@
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -65,8 +65,9 @@ function killProcessTree(pid) {
   if (process.platform === 'win32') {
     // 强制结束包括子进程在内的整棵进程树。
     // PyInstaller 单文件后端会解压出真正的 uvicorn 子进程，仅 kill 引导进程会残留。
+    // 用 spawnSync 同步等待 taskkill 完成，避免 Electron 退出时把 taskkill 子进程一并带走导致后端残留。
     try {
-      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
     } catch {
       /* ignore */
     }
@@ -85,6 +86,14 @@ function stopBackend() {
   }
   backend = null
   backendPort = null
+  if (process.platform === 'win32') {
+    // 兜底：清理任何残留的同名后端进程（含历史遗留的孤儿进程）。
+    try {
+      spawnSync('taskkill', ['/IM', 'teyvat-server.exe', '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function createWindow() {
