@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -28,50 +27,17 @@ PORT_MARKER = "PORT="
 
 
 def default_save_dir() -> str:
-    """返回系统默认的“下载”文件夹；个别环境取不到时回退到用户目录下的 Downloads，再不行才用当前目录。
+    """所有数据文件（下载、配置文件）都放在当前运行目录下。
 
-    打包后后端工作目录是 Electron 的 resources，已不再适合当作下载目录，
-    所以改为让文件下载到用户熟悉的“下载”。
+    打包后后端由 Electron 以 cwd=程序运行目录（resources）启动，这里直接使用该工作目录即可，
+    无需再依赖系统下载文件夹或用户目录。
     """
-    if os.name == "nt":
-        try:
-            import ctypes
-            from ctypes import wintypes
-
-            # FOLDERID_Downloads = {374DE290-123F-4565-9164-39C4925E467B}
-            class _GUID(ctypes.Structure):
-                _fields_ = [
-                    ("Data1", ctypes.c_ulong),
-                    ("Data2", ctypes.c_ushort),
-                    ("Data3", ctypes.c_ushort),
-                    ("Data4", ctypes.c_ubyte * 8),
-                ]
-
-            knowndir = _GUID(
-                0x374DE290, 0x123F, 0x4565, (ctypes.c_ubyte * 8)(0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B)
-            )
-            sh = ctypes.windll.shell32.SHGetKnownFolderPath
-            sh.argtypes = [ctypes.POINTER(_GUID), wintypes.DWORD, wintypes.HANDLE, ctypes.POINTER(ctypes.c_wchar_p)]
-            sh.restype = ctypes.HRESULT
-            path = ctypes.c_wchar_p()
-            if sh(ctypes.byref(knowndir), 0, None, ctypes.byref(path)) == 0 and path.value:
-                return path.value
-        except (AttributeError, OSError):
-            pass
-    fallback = Path.home() / "Downloads"
-    if fallback.is_dir():
-        return str(fallback)
     return str(Path.cwd())
 
 
 def config_path() -> Path:
-    """配置文件放到用户级专用目录，避免默认下载目录变更后把配置写进下载文件夹。"""
-    cfg_dir = Path.home() / ".teyvat-leyline"
-    try:
-        cfg_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        pass
-    return cfg_dir / "teyvat-config.json"
+    """配置文件与下载内容同放当前运行目录，保证目录内自包含、可整体搬移。"""
+    return Path.cwd() / "teyvat-config.json"
 
 
 # 注意：Pydantic 模型必须在模块级定义。
