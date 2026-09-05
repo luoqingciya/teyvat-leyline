@@ -784,7 +784,7 @@ class DownloadEngine:
                 if now > last_t:
                     instant = (task.downloaded - last_d) / (now - last_t)
                     prev = self._speed.get(task.id, 0.0)
-                    speed = prev if prev <= 0 else prev * 0.6 + instant * 0.4
+                    speed = instant if prev <= 0 else prev * 0.6 + instant * 0.4
                 self._last_sample[task.id] = (task.downloaded, now)
                 self._speed[task.id] = speed
 
