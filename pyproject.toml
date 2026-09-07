@@ -1,6 +1,6 @@
 [project]
 name = "teyvat-leyline"
-version = "0.1.0"
+version = "1.0.0"
 description = "提瓦特地脉 · Teyvat Leyline — Genshin Impact 风格的 Python 多线程下载器（Electron + Python 混合开发，FastAPI 后端 + Vue3 界面）"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -1,6 +1,6 @@
 {
   "name": "teyvat-leyline-app",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "提瓦特地脉 · Teyvat Leyline — Electron + Python 混合开发的 Genshin Impact 风格多线程下载器",
   "main": "out/main/index.js",
   "author": "luoqingciya",
