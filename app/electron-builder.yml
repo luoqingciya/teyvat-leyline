@@ -35,8 +35,13 @@ win:
     - target: nsis
       arch:
         - x64
+    - target: zip
+      arch:
+        - x64
   icon: build/icon.ico
   executableName: TeyvatLeyline
+  # zip 免安装版产物名；nsis 使用下方 nsis.artifactName 覆盖
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 nsis:
   oneClick: false
