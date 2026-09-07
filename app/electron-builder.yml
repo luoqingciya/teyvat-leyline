@@ -22,6 +22,12 @@ extraResources:
 
 asar: true
 
+# GitHub Release 发布（GH_TOKEN 由 CI 注入；本地手动发布时用 gh auth token）
+publish:
+  provider: github
+  owner: luoqingciya
+  repo: teyvat-leyline
+
 win:
   target:
     - target: nsis
