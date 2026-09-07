@@ -61,6 +61,11 @@ jobs:
           npm pkg set version="$ver"
           "synced version: $ver"
 
+      # 先编译渲染层与主进程到 out/，electron-builder 从 out/main/index.js 启动
+      - name: Build renderer & main
+        working-directory: app
+        run: npm run build
+
       - name: Build & publish to GitHub Release
         working-directory: app
         env:
