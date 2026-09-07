@@ -12,32 +12,33 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import secrets
 from pathlib import Path
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from . import __app_name__, __version__
 from .core.engine import DownloadEngine
 
 PORT_MARKER = "PORT="
+TOKEN_HEADER = "X-Teyvat-Token"
 
 
 def default_save_dir() -> str:
-    """所有数据文件（下载、配置文件）都放在当前运行目录下。
-
-    打包后后端由 Electron 以 cwd=程序运行目录（resources）启动，这里直接使用该工作目录即可，
-    无需再依赖系统下载文件夹或用户目录。
-    """
-    return str(Path.cwd())
+    """数据目录：优先取环境变量 ``TEYVAT_DATA_DIR``（打包后由 Electron 传入
+    系统用户数据目录，避免把下载写进安装目录、卸载时被一并删除）；
+    开发/CLI 场景退回当前运行目录，保持目录内自包含。"""
+    return os.environ.get("TEYVAT_DATA_DIR") or str(Path.cwd())
 
 
 def config_path() -> Path:
-    """配置文件与下载内容同放当前运行目录，保证目录内自包含、可整体搬移。"""
-    return Path.cwd() / "teyvat-config.json"
+    return Path(default_save_dir()) / "teyvat-config.json"
 
 
 # 注意：Pydantic 模型必须在模块级定义。
@@ -70,7 +71,9 @@ class Server:
     def __init__(self) -> None:
         self.save_dir = default_save_dir()
         self._config_file = config_path()
-        # url -> 该任务的去除重去重判断需要在 add 前查 is_known
+        # 本地服务鉴权令牌：随进程随机生成，Electron 从 stdout 读取后带给渲染层。
+        # 没有它，本机任意网页都能通过端口扫描驱动这个服务（加任务/关机/改目录）。
+        self.token = secrets.token_hex(16)
         self.engine = DownloadEngine(
             listener=self._on_event,
             save_dir=self.save_dir,
@@ -111,6 +114,10 @@ class Server:
         if not isinstance(data, dict):
             return
         eng = self.engine
+        saved_dir = data.get("saveDir")
+        if isinstance(saved_dir, str) and saved_dir and Path(saved_dir).is_dir():
+            self.save_dir = saved_dir
+            eng.set_save_dir(saved_dir)
         for key, setter in (
             ("numThreads", lambda v: eng.set_threads(int(v))),
             ("globalSpeedKbps", lambda v: eng.set_global_speed(int(v))),
@@ -162,7 +169,7 @@ class Server:
             return {
                 "ok": False,
                 "known": True,
-                "error": "该链接已在下载历史中，为避免重复下载已跳过。",
+                "error": "该链接已存在于任务列表中，请先移除旧任务再重新添加。",
             }
         task_id = self.engine.add(url, self.save_dir)
         task = next((t for t in self.engine.list_tasks() if t["id"] == task_id), None)
@@ -220,7 +227,7 @@ class Server:
         path = (path or "").strip()
         if path and Path(path).is_dir():
             self.save_dir = path
-            self.engine.save_dir = path
+            self.engine.set_save_dir(path)
             self._save_config()
             return {"ok": True, "path": path}
         return {"ok": False, "path": "", "error": "无效的保存目录。"}
@@ -232,13 +239,22 @@ class Server:
 
 def create_app(server: Server) -> FastAPI:
     app = FastAPI(title="teyvat-leyline", version=__version__)
-    # 仅本机服务，允许跨源是安全的（Electron 渲染层/file 与 Vite dev 都来自不同源）
+    # 仅本机服务；跨源放行是因为 Electron 渲染层/file 与 Vite dev 来源不同。
+    # 真正的防线是随机 token：渲染层每次请求都携带，外部网页拿不到。
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def _auth_guard(request, call_next):
+        if request.url.path.startswith("/api"):
+            token = request.headers.get(TOKEN_HEADER) or request.query_params.get("token")
+            if token != server.token:
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        return await call_next(request)
 
     @app.get("/api/config")
     def get_config() -> dict:
@@ -298,6 +314,10 @@ def create_app(server: Server) -> FastAPI:
 
     @app.websocket("/api/ws")
     async def ws(websocket: WebSocket) -> None:
+        # WebSocket 无法自定义请求头，令牌经查询串传入
+        if websocket.query_params.get("token") != server.token:
+            await websocket.close(code=4401)
+            return
         await websocket.accept()
         if server._loop is None:
             server._loop = asyncio.get_running_loop()
@@ -307,7 +327,7 @@ def create_app(server: Server) -> FastAPI:
             while True:
                 try:
                     payload = await asyncio.wait_for(q.get(), timeout=30)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     await websocket.send_text('{"ping":true}')
                     continue
                 await websocket.send_text(json.dumps(payload, ensure_ascii=False))
@@ -331,6 +351,8 @@ class _PortAwareServer(uvicorn.Server):
 def main() -> None:
     server = Server()
     app = create_app(server)
+    # 令牌先于端口打印，Electron 两者都从 stdout 解析
+    print(f"TOKEN={server.token}", flush=True)
     config = uvicorn.Config(
         app,
         host="127.0.0.1",

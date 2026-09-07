@@ -4,6 +4,7 @@ import { api, subscribeProgress } from './api'
 import { fmtSpeed } from './utils'
 import TaskCard from './components/TaskCard.vue'
 import SettingsModal from './components/SettingsModal.vue'
+import HistoryModal from './components/HistoryModal.vue'
 import Toaster from './components/Toaster.vue'
 
 const toaster = ref(null)
@@ -12,10 +13,28 @@ const threads = ref(8)
 const saveDir = ref('')
 const config = ref({})
 const showSettings = ref(false)
+const showHistory = ref(false)
 const urlInput = ref('')
 const connected = ref(false)
 
-const tasks = computed(() => Object.values(tasksRecord))
+// 活跃任务置顶，其后是暂停/出错，最后是完成/取消；组内按创建时间排序
+const STATUS_ORDER = {
+  downloading: 0,
+  probing: 0,
+  queued: 0,
+  checking: 0,
+  paused: 1,
+  error: 1,
+  completed: 2,
+  cancelled: 2
+}
+const tasks = computed(() =>
+  Object.values(tasksRecord).sort(
+    (a, b) =>
+      (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+      (a.createdAt || 0) - (b.createdAt || 0)
+  )
+)
 const activeCount = computed(
   () => tasks.value.filter((t) => t.status === 'downloading' || t.status === 'probing').length
 )
@@ -47,7 +66,13 @@ async function reconcile(list) {
     }
   }
   for (const id of Object.keys(tasksRecord)) {
-    if (!seen.has(id)) delete tasksRecord[id]
+    if (!seen.has(id)) {
+      delete tasksRecord[id]
+      // 同步清理状态通知去重表，避免长期运行时无限增长
+      for (const key of [...lastNotified.keys()]) {
+        if (key.startsWith(id + ':')) lastNotified.delete(key)
+      }
+    }
   }
 }
 
@@ -66,8 +91,26 @@ function notifyTransition(prev, task) {
   if (task.status === 'completed' && prev.status !== 'completed') {
     const ok = task.verified === true
     toaster.value?.push(`「${task.filename}」下载完成${ok ? '，哈希校验通过' : ''}`, ok ? 'success' : 'info')
+    notifyDesktop(`下载完成：${task.filename}`)
   } else if (task.status === 'error' && prev.status !== 'error') {
     toaster.value?.push(`「${task.filename}」下载异常中断`, 'error')
+  }
+}
+
+// 系统级通知（窗口最小化时也能看到下载完成）
+function notifyDesktop(body) {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then((p) => {
+          if (p === 'granted') new Notification('提瓦特地脉', { body, silent: true })
+        })
+        return
+      }
+      new Notification('提瓦特地脉', { body, silent: true })
+    }
+  } catch {
+    /* 通知不可用时静默 */
   }
 }
 
@@ -83,9 +126,14 @@ async function addTaskFromInput() {
   if (!url) return
   try {
     const res = await api.addTask(url)
-    urlInput.value = ''
-    if (res && !res.ok && res.known) toaster.value?.push('该链接已在下载历史中，已跳过避免重复下载', 'info')
-    else if (res && !res.ok && res.error) toaster.value?.push(res.error, 'error')
+    if (!res || res.ok) {
+      urlInput.value = ''
+    } else if (res.known) {
+      toaster.value?.push(res.error || '该链接已在任务列表中', 'info')
+    } else {
+      // 失败时保留输入，方便修改后重试
+      if (res.error) toaster.value?.push(res.error, 'error')
+    }
     // 立即把新任务纳入列表，不必等下一轮 WS 推送或轮询
     await refresh()
   } catch (e) {
@@ -104,6 +152,13 @@ async function chooseDir() {
   }
 }
 
+async function clearFinished() {
+  const done = tasks.value.filter((t) => t.status === 'completed' || t.status === 'cancelled')
+  if (!done.length) return
+  await Promise.allSettled(done.map((t) => api.removeTask(t.id)))
+  await refresh()
+}
+
 function applyConfig(cfg) {
   config.value = cfg || {}
   threads.value = cfg?.numThreads ?? 8
@@ -118,6 +173,7 @@ function onSaved(cfg) {
 // ---- 初始化 ----
 let wsOff = null
 let pollTimer = null
+let lastRefresh = 0
 
 async function boot() {
   try {
@@ -138,13 +194,18 @@ async function boot() {
     }
   )
 
-  // 兜底轮询，确保与后端一致
-  pollTimer = setInterval(async () => {
-    await refresh()
+  // 兜底轮询：WS 断开时 5s 一轮快速恢复；连接正常时降为 30s 一次防漏事件
+  pollTimer = setInterval(() => {
+    if (!connected.value) {
+      refresh()
+      return
+    }
+    if (Date.now() - lastRefresh > 30000) refresh()
   }, 5000)
 }
 
 async function refresh() {
+  lastRefresh = Date.now()
   try {
     const list = await api.getTasks()
     reconcile(list || [])
@@ -207,6 +268,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <button class="btn btn-ghost" @click="showSettings = true">设置</button>
+        <button class="btn btn-ghost" @click="showHistory = true">历史</button>
         <button class="btn btn-ghost" @click="chooseDir">选择目录</button>
       </div>
     </header>
@@ -256,6 +318,10 @@ onBeforeUnmount(() => {
       </section>
 
       <section v-if="tasks.length" id="taskList" class="tasks glass">
+        <div class="tasks-toolbar">
+          <span class="tasks-title">任务</span>
+          <button class="mini-btn" @click="clearFinished">清空已完成</button>
+        </div>
         <TaskCard v-for="t in tasks" :key="t.id" :task="t" />
       </section>
 
@@ -275,6 +341,7 @@ onBeforeUnmount(() => {
     </footer>
 
     <SettingsModal :show="showSettings" @close="showSettings = false" @saved="onSaved" />
+    <HistoryModal :show="showHistory" @close="showHistory = false" />
     <Toaster ref="toaster" />
   </div>
 </template>

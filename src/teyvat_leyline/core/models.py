@@ -97,4 +97,6 @@ class DownloadTask:
             "proxy": self.proxy,
             "verified": self.verified,
             "retries": self.retries,
+            "createdAt": self.created_at,
+            "sha256": self.sha256,
         }

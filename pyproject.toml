@@ -52,6 +52,15 @@ package = true
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
+# S110：清理/落盘等尽力而为的 IO 刻意吞掉异常，属预期行为
+extend-ignore = ["S110"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.6",
+]

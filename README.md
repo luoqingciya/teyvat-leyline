@@ -18,8 +18,10 @@ Python 依赖由 [uv](https://docs.astral.sh/uv/) 管理；前端依赖由 npm �
 - **多线程分片下载**：探测服务器后按 `Range` 把大文件切成多段并发下载；
 
 - **断点续传**：使用 `.part` 临时文件 + `.part.json` 段状态清单，可随时暂停/恢复；
+  重启应用后会自动扫描断点清单，把未完成任务恢复为“已暂停”状态，点击继续即可续传；
 
 - **退化为单流**：对不支持 `Range` 或大小未知的资源自动改用顺序单流下载；
+  服务器宣称支持 Range 实际却返回 200 时，自动降级为单流重下；
 
 - **进度实时推送**：后端经 WebSocket 推送速度、剩余时间与百分比到前端；
 
@@ -27,7 +29,10 @@ Python 依赖由 [uv](https://docs.astral.sh/uv/) 管理；前端依赖由 npm �
 
 - **多任务队列**：同时管理多个下载，各自独立进度，支持每任务限速与调整线程数；
 
-- **限速 / 并发 / 重试 / 代理 / SHA256 校验**：全局与每任务均可配置。
+- **限速 / 并发 / 重试 / 代理 / SHA256 校验**：全局与每任务均可配置；
+
+- **本地服务鉴权**：后端启动时生成随机 token，仅携带令牌的请求可访问 API，
+  防止本机其它网页经端口扫描驱动下载器。
 
 ## 🏗️ 技术架构
 
@@ -46,13 +51,17 @@ Python 依赖由 [uv](https://docs.astral.sh/uv/) 管理；前端依赖由 npm �
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **随机端口**：后端每次启动向 stdout 打印 `PORT=<n>`，Electron 读取后传给前端，
-  避免端口冲突；
+- **随机端口 + 随机令牌**：后端每次启动向 stdout 打印 `PORT=<n>` 与 `TOKEN=<hex>`，
+  Electron 读取后传给前端（HTTP 走 `X-Teyvat-Token` 头，WebSocket 走 `?token=`），
+  避免端口冲突，也避免本机其它进程/页面未授权调用；
 
-- **进程生命周期**：Electron 主进程拉起后端子进程，窗口关闭时一并回收。
+- **进程生命周期**：Electron 主进程拉起后端子进程，窗口关闭时一并回收；
+  后端意外退出时自动重启（上限 5 次），前端会重新探测端口恢复连接；
+  应用通过单实例锁避免双开；
 
-- **数据存放**：下载文件与 `teyvat-config.json` 配置都放在**当前运行目录**（后端以该目录为工作目录），
-  应用自包含、可整体搬移。
+- **数据存放**：开发模式数据（下载、`teyvat-config.json`、历史、断点）放在**当前运行目录**；
+  打包后由 Electron 通过 `TEYVAT_DATA_DIR` 指向系统用户数据目录
+  （`%APPDATA%\teyvat-leyline-app`），避免写入安装目录、卸载时被连带删除。
 
 ## 🚀 快速开始
 
@@ -116,10 +125,10 @@ teyvat-leyline/
 │  │  └─ renderer/             # Vue3 渲染层
 │  │     ├─ src/
 │  │     │  ├─ App.vue         # 主界面
-│  │     │  ├─ api.js          # fetch + WebSocket 封装
+│  │     │  ├─ api.js          # fetch + WebSocket 封装（自动携带 token、端口变化重探测）
 │  │     │  ├─ utils.js        # 格式化工具
 │  │     │  ├─ assets/style.css
-│  │     │  └─ components/     # TaskCard / SettingsModal / Toaster
+│  │     │  └─ components/     # TaskCard / SettingsModal / HistoryModal / Toaster
 │  │     └─ index.html
 │  ├─ electron.vite.config.js  # electron-vite 构建配置
 │  ├─ electron-builder.yml     # 桌面打包配置

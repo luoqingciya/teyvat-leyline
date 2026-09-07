@@ -24,7 +24,12 @@ class RateLimiter:
         self._budget = 0.0  # 已预支的字节余额
         self._stamp = time.monotonic()
 
-    def acquire(self, n: int, rate: float) -> None:
+    def acquire(self, n: int, rate: float, interrupt: threading.Event | None = None) -> None:
+        """按 ``rate``（字节/秒）为 ``n`` 字节扣减预算，必要时睡眠等待。
+
+        ``interrupt`` 给出时，睡眠按 50ms 切片并随时响应事件置位，
+        避免低速率下一次长睡眠让暂停/取消失去响应。
+        """
         if rate <= 0 or n <= 0:
             return
         with self._lock:
@@ -32,8 +37,7 @@ class RateLimiter:
             self._budget += (now - self._stamp) * rate
             self._stamp = now
             # 只允许最长 1 秒的突发，避免积压后猛然追平
-            if self._budget > rate:
-                self._budget = rate
+            self._budget = min(self._budget, rate)
             if self._budget >= n:
                 self._budget -= n
                 return
@@ -41,7 +45,20 @@ class RateLimiter:
             self._budget = 0.0
             delay = need / rate
         if delay > 0:
-            time.sleep(delay)
+            sleep_interruptible(delay, interrupt)
+
+
+def sleep_interruptible(delay: float, interrupt: threading.Event | None = None) -> None:
+    """睡眠 ``delay`` 秒；给出 ``interrupt`` 时每 50ms 检查一次，置位即提前返回。"""
+    if interrupt is None:
+        time.sleep(delay)
+        return
+    deadline = time.monotonic() + delay
+    while not interrupt.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(0.05, remaining))
 
 
 class ConcurrencyGate:

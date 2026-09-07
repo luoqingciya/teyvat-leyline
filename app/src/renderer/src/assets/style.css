@@ -373,7 +373,7 @@ html, body {
 .toggle[aria-checked="true"] .knob { transform: translateX(20px); background: #fff; }
 .settings-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
-/* ---- 任务卡每任务限速 ---- */
+/* ---- 任务卡每任务限速 / 线程 ---- */
 .task-rate {
   display: flex; align-items: center; gap: 8px;
   margin-top: 9px;
@@ -385,9 +385,58 @@ html, body {
   font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums;
 }
 .task-rate .row-unit { color: #6f7a9e; }
+.rate-input {
+  width: 90px;
+  background: rgba(0,0,0,.28);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 5px 9px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-family: var(--font);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.rate-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(114,229,207,.14); }
+.rate-select {
+  background: rgba(0,0,0,.28);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 5px 7px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-family: var(--font);
+  outline: none;
+  cursor: pointer;
+}
+.meta-retries { color: var(--viol); }
 .verify-line { margin-top: 8px; font-size: 12px; }
 .verify-line.ok { color: var(--ok); }
 .verify-line.fail { color: var(--danger); }
+
+/* ---- 任务列表工具条 ---- */
+.tasks-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px 2px;
+}
+.tasks-title { font-size: 12px; letter-spacing: 2px; color: var(--text-dim); }
+
+/* ---- 下载历史 ---- */
+.history { width: 520px; }
+.history-body { gap: 0; }
+.history-empty { text-align: center; color: var(--text-dim); padding: 26px 0; font-size: 13px; }
+.history-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.history-item:last-child { border-bottom: none; }
+.history-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.history-name {
+  font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-meta { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 /* ---- 通知 ---- */
 .toasts {

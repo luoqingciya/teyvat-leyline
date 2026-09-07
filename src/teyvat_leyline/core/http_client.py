@@ -6,7 +6,7 @@ import mimetypes
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import unquote, urlparse, urlunparse
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -17,9 +17,15 @@ DEFAULT_USER_AGENT = (
 )
 
 CHUNK_SIZE = 256 * 1024          # 单次读取 256 KiB
-MAX_PROBE_RETRIES = 2
 CONNECT_TIMEOUT = 10.0
 READ_TIMEOUT = 60.0
+
+# Windows 保留设备名，任何扩展名组合下都不能作为文件名主干
+WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 
 
 @dataclass
@@ -96,23 +102,32 @@ def _suggest_filename(url: str, content_type: str | None) -> str:
 
 
 def probe(url: str, *, verify: bool = True, extra_headers: dict[str, str] | None = None,
-          proxy: str | None = None) -> ProbeResult:
+          proxy: str | None = None, client: httpx.Client | None = None) -> ProbeResult:
     """探测远程文件：大小、是否支持 Range、推荐文件名。
 
     优先 HEAD；若服务器拒绝 HEAD（405/501/403 等），则用 ``Range: bytes=0-0``
-    的 GET 探一下 ``Content-Range`` 头。
+    的 GET 探一下 ``Content-Range`` 头。其余 4xx/5xx 直接抛错，让上层
+    尽快失败并进入重试，而不是带着空探测结果走单流下载。
+
+    传入 ``client`` 时复用调用方的连接（探测与下载共用连接池），不再自建。
     """
     headers = {"Accept": "*/*", **referrer_headers(url)}
     if extra_headers:
         headers.update(extra_headers)
 
-    with _safe_client(verify=verify, proxy=proxy) as client:
+    owns_client = client is None
+    if owns_client:
+        client = _safe_client(verify=verify, proxy=proxy)
+    try:
         resp = client.head(url, headers=headers)
         method = "HEAD"
 
         if resp.status_code in (405, 501, 403):
             resp = client.get(url, headers={**headers, "Range": "bytes=0-0"})
             method = "GET(0-0)"
+
+        if resp.status_code >= 400:
+            raise RuntimeError(f"HTTP {resp.status_code}")
 
         supports_range = "bytes" in (resp.headers.get("accept-ranges", "") or "").lower()
         content_length = _parse_content_length(resp.headers.get("content-length"))
@@ -138,11 +153,16 @@ def probe(url: str, *, verify: bool = True, extra_headers: dict[str, str] | None
             final_url=str(resp.url),
             method=method,
         )
+    finally:
+        if owns_client:
+            client.close()
 
 
 def sanitize_filename(name: str) -> str:
     """去掉 Windows/常见非法字符，避免保存失败。"""
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip().rstrip(". ")
+    if cleaned and Path(cleaned).stem.upper() in WINDOWS_RESERVED:
+        cleaned = "_" + cleaned
     return cleaned[:200] or "download.bin"
 
 
@@ -159,12 +179,6 @@ def unique_dest(directory: str, filename: str) -> str:
         if not candidate.exists():
             return str(candidate)
         i += 1
-
-
-def url_without_query(url: str) -> str:
-    """去掉查询串（用于命名临时/校验文件，避免文件名带长参数）。"""
-    parsed = urlparse(url)
-    return urlunparse(parsed._replace(query=""))
 
 
 def referrer_headers(url: str) -> dict[str, str]:

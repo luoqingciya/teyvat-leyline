@@ -12,12 +12,21 @@ const isDev = !!process.env['ELECTRON_RENDERER_URL']
 // 开发时 __dirname = app/out/main，向上三级即仓库根；打包后由 extraResources 把 python 后端放到 resources/backend。
 const PROJECT_ROOT = join(__dirname, '..', '..', '..')
 
+// 单实例锁：避免双开导致后端互相 kill、下载目录写入冲突
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+}
+
 let backend = null
 let backendPort = null
+let backendToken = null
+let stopping = false
+let backendRestartAttempts = 0
+const MAX_BACKEND_RESTARTS = 5
 
 function resolveBackendLaunch() {
   if (isDev) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return {
       command: 'uv',
       args: ['run', 'teyvat-server'],
@@ -29,26 +38,38 @@ function resolveBackendLaunch() {
   if (!existsSync(exe)) {
     throw new Error('未找到后端可执行文件: ' + exe)
   }
-  // 保存目录由后端自己做为主目录；单文件运行 cwd 设为 resources
-  return { command: exe, args: [], cwd: process.resourcesPath }
+  // 数据目录（下载/配置/历史）指向系统用户数据目录。
+  // 绝不能写进安装目录：卸载时 NSIS 会整个删掉，用户的下载文件会跟着消失。
+  const env = { ...process.env, TEYVAT_DATA_DIR: app.getPath('userData') }
+  return { command: exe, args: [], cwd: process.resourcesPath, env }
 }
 
 function startBackend() {
+  if (stopping) return
   backendPort = null
-  const { command, args, cwd } = resolveBackendLaunch()
-  backend = spawn(command, args, { cwd, windowsHide: false })
+  backendToken = null
+  const { command, args, cwd, env } = resolveBackendLaunch()
+  backend = spawn(command, args, { cwd, env, windowsHide: false })
 
   backend.stdout?.setEncoding('utf-8')
   const rl = readline.createInterface({ input: backend.stdout })
 
   rl.on('line', (line) => {
-    const m = /^PORT=(\d+)/.exec(line.trim())
+    let m = /^PORT=(\d+)/.exec(line.trim())
     if (m) {
       backendPort = Number(m[1])
+      // 端口就绪说明这次启动成功，重置崩溃重启计数
+      backendRestartAttempts = 0
       console.log(`[backend] 端口 ${backendPort}`)
-    } else {
-      console.log('[backend]', line)
+      return
     }
+    m = /^TOKEN=([0-9a-fA-F]+)/.exec(line.trim())
+    if (m) {
+      backendToken = m[1]
+      console.log('[backend] 令牌已就绪')
+      return
+    }
+    console.log('[backend]', line)
   })
 
   backend.stderr?.setEncoding('utf-8')
@@ -57,6 +78,12 @@ function startBackend() {
   backend.on('exit', (code, signal) => {
     console.log('[backend] 退出', code, signal)
     backend = null
+    // 意外退出时自动重启，前端会重新探测端口并恢复连接
+    if (!stopping && backendRestartAttempts < MAX_BACKEND_RESTARTS) {
+      backendRestartAttempts += 1
+      console.log(`[backend] 意外退出，2s 后重启（第 ${backendRestartAttempts}/${MAX_BACKEND_RESTARTS} 次）`)
+      setTimeout(startBackend, 2000)
+    }
   })
   backend.on('error', (err) => console.error('[backend] 启动失败', err))
 }
@@ -81,11 +108,13 @@ function killProcessTree(pid) {
 }
 
 function stopBackend() {
+  stopping = true
   if (backend && backend.exitCode === null) {
     killProcessTree(backend.pid)
   }
   backend = null
   backendPort = null
+  backendToken = null
   if (process.platform === 'win32') {
     // 兜底：清理任何残留的同名后端进程（含历史遗留的孤儿进程）。
     try {
@@ -127,7 +156,7 @@ function createWindow() {
 }
 
 // ---- IPC ----
-ipcMain.handle('backend:getPort', () => backendPort)
+ipcMain.handle('backend:getAuth', () => ({ port: backendPort, token: backendToken }))
 ipcMain.handle('dialog:pickDir', async () => {
   const r = await dialog.showOpenDialog({
     properties: ['openDirectory', 'createDirectory'],
@@ -138,7 +167,16 @@ ipcMain.handle('dialog:pickDir', async () => {
 })
 
 // ---- 生命周期 ----
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
+})
+
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return
   try {
     startBackend()
   } catch (err) {

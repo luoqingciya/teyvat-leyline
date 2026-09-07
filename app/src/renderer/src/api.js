@@ -1,51 +1,65 @@
 // 封装与 Python 后端的 HTTP + WebSocket 通信。
-// 端口来自 Electron 主进程从后端 stdout 读到的随机端口。
+// 端口与鉴权令牌都来自 Electron 主进程对后端 stdout 的解析：
+// 后端启动时打印 PORT=<n> 与 TOKEN=<hex>，请求需携带 X-Teyvat-Token 头。
 
 let base = ''
 let wsBase = ''
-let readyPromise = null
+let token = ''
+let baseReady = false
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// 后端由主进程拉起，随机端口在 stdout 就绪需要一点时间（PyInstaller 单文件需先解压）。
-// 这里循环轮询端口，避免拿到 null 而连到错误的地址。
-async function waitForPort(timeoutMs = 20000) {
-  if (!window.electronAPI) {
-    // 纯 Web 调试环境：无主进程，使用 VITE 配置的端口
-    return import.meta.env.VITE_BACKEND_PORT || null
+async function readAuth() {
+  if (window.electronAPI?.getBackendAuth) {
+    try {
+      return await window.electronAPI.getBackendAuth()
+    } catch {
+      return null
+    }
   }
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const port = await window.electronAPI.getBackendPort()
-    if (port) return port
-    await sleep(300)
+  // 纯 Web 调试环境：无主进程，使用 Vite 注入的端口与令牌
+  return {
+    port: import.meta.env.VITE_BACKEND_PORT || null,
+    token: import.meta.env.VITE_BACKEND_TOKEN || ''
   }
-  return null
 }
 
-async function init() {
-  if (readyPromise) return readyPromise
-  readyPromise = (async () => {
-    const port = await waitForPort()
-    if (!port) throw new Error('无法获取后端端口')
+// 读取一次端口/令牌，端口变化时更新 base。
+// 后端崩溃会被主进程重启且端口随机变化，因此每次连接前都重读（一次 IPC 调用，开销可忽略）。
+async function refreshBase() {
+  const auth = await readAuth()
+  if (!auth || !auth.port) return false
+  token = auth.token || ''
+  const port = String(auth.port)
+  if (!base || !base.endsWith(`:${port}`)) {
     base = `http://127.0.0.1:${port}`
     wsBase = `ws://127.0.0.1:${port}/api/ws`
-  })()
-  try {
-    return await readyPromise
-  } catch (e) {
-    // 关键：init 失败时清空缓存，让后续调用重新探测端口。
-    // 否则首次失败会被永久缓存，导致“连接中…”和导入任务全部失效。
-    readyPromise = null
-    throw e
   }
+  return true
+}
+
+// 后端由主进程拉起，随机端口在 stdout 就绪需要一点时间（PyInstaller 单文件需先解压）。
+async function ensureBase(waitMs = 20000) {
+  if (baseReady && (await refreshBase())) return
+  const deadline = Date.now() + waitMs
+  while (Date.now() < deadline) {
+    if (await refreshBase()) {
+      baseReady = true
+      return
+    }
+    await sleep(300)
+  }
+  throw new Error('无法获取后端端口')
 }
 
 async function request(path, options = {}) {
-  await init()
-  const res = await fetch(base + path, options)
+  await ensureBase()
+  const headers = { ...(options.headers || {}) }
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  if (token) headers['X-Teyvat-Token'] = token
+  const res = await fetch(base + path, { ...options, headers })
   const text = await res.text()
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`)
   return text ? JSON.parse(text) : null
@@ -54,13 +68,12 @@ async function request(path, options = {}) {
 function json(method, path, body) {
   return request(path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body)
   })
 }
 
 export const api = {
-  init,
+  init: () => ensureBase(),
   getConfig: () => request('/api/config'),
   saveConfig: (settings) => json('PUT', '/api/config', { settings }),
   getTasks: () => request('/api/tasks'),
@@ -72,7 +85,7 @@ export const api = {
   setTaskSpeed: (id, kbps) => json('POST', `/api/tasks/${id}/speed`, { kbps }),
   setTaskThreads: (id, n) => json('POST', `/api/tasks/${id}/threads`, { n }),
   setDirectory: (path) => json('PUT', '/api/directory', { path }),
-  isKnown: (url) => request(`/api/known?url=${encodeURIComponent(url)}`)
+  getHistory: () => request('/api/history')
 }
 
 // WebSocket 进度订阅：传入数据回调与状态回调，返回取消函数。
@@ -92,16 +105,17 @@ export function subscribeProgress(handler, onStatus = () => {}) {
   const connect = async () => {
     if (closed) return
     try {
-      await init()
+      await ensureBase(2000)
     } catch {
-      // init 失败（端口还没读到），稍后重试，避免永久卡在“连接中”
+      // 端口还没读到（后端未就绪），稍后重试，避免永久卡在“连接中”
       onStatus('close')
       retry += 1
       schedule(Math.min(5000, 500 * retry))
       return
     }
+    const url = token ? `${wsBase}?token=${encodeURIComponent(token)}` : wsBase
     try {
-      ws = new WebSocket(wsBase)
+      ws = new WebSocket(url)
     } catch {
       onStatus('close')
       retry += 1
