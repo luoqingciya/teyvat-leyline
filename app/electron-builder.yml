@@ -23,10 +23,12 @@ extraResources:
 asar: true
 
 # GitHub Release 发布（GH_TOKEN 由 CI 注入；本地手动发布时用 gh auth token）
+# releaseType: release —— 发布正式版；默认 draft 会导致 Release 处于草稿状态不对外显示
 publish:
   provider: github
   owner: luoqingciya
   repo: teyvat-leyline
+  releaseType: release
 
 win:
   target:
